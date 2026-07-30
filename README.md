@@ -8,4 +8,5 @@ This is working with Datecs DP150MX cash registers for **Romania**, i don't have
 
 
 **What you can do with this toll?**
+
 You can manage you fleet cash registers, read and set time/date, read and set VAT rates for the moment
