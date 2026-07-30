@@ -15,7 +15,7 @@ LOGS_DIR = "/logs"
 LOG_FILE = os.path.join(LOGS_DIR, "active.log")
 
 # =====================================================================
-# Logging & Auto-Rotation Setup (with Hostname/Computer Name lookup)
+# Logging & Auto-Rotation Setup (with Hostname/Computer Name lookup)  #
 # =====================================================================
 def ensure_log_dir():
     """
