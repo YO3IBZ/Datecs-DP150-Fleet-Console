@@ -7,6 +7,6 @@ This is working with Datecs DP150MX cash registers for **Romania**, i don't have
 3. And now run the python script, access the webpage and add cash registers ;)
 
 
-**What you can do with this toll?**
+**What you can do with this tool?**
 
 You can manage you fleet cash registers, read and set time/date, read and set VAT rates for the moment
