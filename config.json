@@ -1,0 +1,11 @@
+{
+    "admin_password": "admin",
+    "registers": [
+        {
+            "id": 1,
+            "name": "Test",
+            "ip_address": "192.168.10.113",
+            "port": 3999
+        },
+    ]
+}
