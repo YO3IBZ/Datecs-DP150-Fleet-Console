@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Datecs Register Management Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f1f3f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        .navbar { flex-shrink: 0; }
+        .main-container { flex-grow: 1; display: flex; overflow: hidden; padding: 1rem 0; }
+        .card { box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: none; border-radius: 8px; display: flex; flex-direction: column; }
+        .master-card { height: 100%; }
+        .detail-card { height: 100%; overflow-y: auto; }
+        .scrollable-list { overflow-y: auto; flex-grow: 1; }
+        
+        /* Compact Single Line Row */
+        .list-group-item-compact {
+            padding: 4px 8px !important;
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: background-color 0.1s ease-in-out;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .list-group-item-compact:hover { background-color: #f8f9fa; }
+        .list-group-item-compact.active-reg { background-color: #e8f4fd; border-left: 3px solid #0d6efd; }
+        
+        .status-badge { font-size: 0.68rem !important; padding: 1px 4px !important; min-width: 48px; text-align: center; line-height: 1.2; }
+        .section-header { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; color: #6c757d; }
+        .data-display { font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        .indicator-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .dot-checking { background-color: #ffc107; }
+        .dot-online { background-color: #198754; }
+        .dot-offline { background-color: #dc3545; }
+        .btn-compact { font-size: 0.7rem !important; padding: 0px 4px !important; line-height: 1.1; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid px-4">
+            <span class="navbar-brand">Datecs DP150 MX Fleet Console</span>
+            <div class="d-flex align-items-center">
+                <div class="input-group input-group-sm me-2" style="max-width: 230px;">
+                    <span class="input-group-text bg-secondary text-white">ðŸ”‘ Admin Key</span>
+                    <input type="password" class="form-control" id="globalAdminPassword" placeholder="Enter Admin Password">
+                </div>
+                <button class="btn btn-sm btn-outline-info text-white me-2" onclick="showLogsModal()">View Logs</button>
+                <button class="btn btn-sm btn-outline-warning" onclick="showChangePwdModal()">Edit Key</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4 main-container">
+        <div class="row w-100 h-100 g-3">
+            
+            <!-- MASTER VIEW (Left Column: Register List with Search & Filters) -->
+            <div class="col-lg-5 col-xl-4 h-100">
+                <div class="card master-card p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0 fw-bold">Connected Registers</h6>
+                        <button class="btn btn-primary btn-sm py-0 px-2" style="font-size:0.75rem;" onclick="showAddModal()">Add New</button>
+                    </div>
+                    
+                    <!-- Search and Status Options Filter Panel -->
+                    <div class="mb-2">
+                        <input type="text" id="searchBar" class="form-control form-control-sm mb-2" placeholder="Search by name, IP, or status (online/offline)..." oninput="filterRegisters()">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div class="d-flex gap-1" id="filterStatusOptions">
+                                <button class="btn btn-xs btn-outline-primary py-0 px-2 active" id="btn-filter-all" onclick="setStatusFilter('all')" style="font-size: 0.7rem; line-height: 1.2;">All</button>
+                                <button class="btn btn-xs btn-outline-success py-0 px-2" id="btn-filter-online" onclick="setStatusFilter('online')" style="font-size: 0.7rem; line-height: 1.2;">Online</button>
+                                <button class="btn btn-xs btn-outline-danger py-0 px-2" id="btn-filter-offline" onclick="setStatusFilter('offline')" style="font-size: 0.7rem; line-height: 1.2;">Offline</button>
+                            </div>
+                            <!-- Sort interactive indicators -->
+                            <div class="d-flex gap-1 align-items-center text-muted" style="font-size: 0.68rem; user-select: none;">
+                                <span class="me-1 fw-bold">Sort:</span>
+                                <span class="pointer text-decoration-underline" id="sort-name" onclick="toggleSort('name')" style="cursor:pointer;">Name <span id="arrow-name">â†•</span></span>
+                                <span class="pointer text-decoration-underline" id="sort-ip" onclick="toggleSort('ip')" style="cursor:pointer;">IP <span id="arrow-ip">â†•</span></span>
+                                <span class="pointer text-decoration-underline" id="sort-status" onclick="toggleSort('status')" style="cursor:pointer;">Status <span id="arrow-status">â†•</span></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Compact scrollable inventory list -->
+                    <div class="scrollable-list">
+                        <div class="list-group list-group-flush border rounded" id="registerList">
+                            <!-- Filled dynamically by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DETAIL VIEW (Right Column: Unified Operations Block) -->
+            <div class="col-lg-7 col-xl-8 h-100">
+                
+                <div id="emptyPanel" class="card h-100 d-flex align-items-center justify-content-center text-muted bg-light border">
+                    <div class="text-center">
+                        <div class="fs-4 mb-2">ðŸ“Ÿ Device Management Console</div>
+                        <div>Select a register from the left list to inspect status. Connection check is entirely read-only.</div>
+                    </div>
+                </div>
+
+                <div id="controlPanel" class="card detail-card p-4 d-none">
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                        <div>
+                            <h4 class="text-primary mb-1" id="selectedRegName">Select Device</h4>
+                            <span class="text-muted small font-monospace" id="selectedRegIpDetail">0.0.0.0:3999</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-secondary fs-6 py-2 px-3 me-2" id="selectedRegStatus">Offline</span>
+                            <button class="btn btn-sm btn-outline-primary" id="btnRefreshStatus" onclick="queryRegisterStatus()">Refresh All Details</button>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-4">
+                        <!-- CLOCK MANAGEMENT SUB-SECTION -->
+                        <div class="col-md-6 border-end">
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="section-header">1. Clock & Date Management</span>
+                            </div>
+                            
+                            <div class="p-3 bg-light rounded mb-3">
+                                <small class="text-muted d-block mb-1">Current Device Time Readout:</small>
+                                <strong id="currentDeviceTime" class="fs-5 text-dark data-display">Not Queried</strong>
+                            </div>
+                            
+                            <div class="p-3 border rounded">
+                                <h6 class="text-secondary mb-2">Set Clock Override</h6>
+                                <div class="mb-2">
+                                    <label class="form-label small text-muted mb-1">Select Target Date & Time</label>
+                                    <input type="datetime-local" class="form-control form-control-sm" id="manualDateTime">
+                                </div>
+                                <div class="form-check mb-1">
+                                    <input class="form-check-input" type="checkbox" id="syncWithLocalClient" onchange="toggleClientSync()">
+                                    <label class="form-check-label small" for="syncWithLocalClient">Sync with accessing computer clock</label>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="manualDst" checked>
+                                    <label class="form-check-label small" for="manualDst">Daylight Saving (DST)</label>
+                                </div>
+                                <button class="btn btn-warning btn-sm w-100" onclick="setManualTime()">Apply Date & Time</button>
+                            </div>
+                        </div>
+
+                        <!-- VAT RATES SUB-SECTION -->
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="section-header">2. VAT Rates Configuration</span>
+                            </div>
+
+                            <div class="p-3 bg-light rounded mb-3">
+                                <small class="text-muted d-block mb-2">Active Configured VAT Rates (Romania Groups A-E):</small>
+                                <div id="vatContainer" class="row g-2">
+                                    <!-- Filled dynamically by JS -->
+                                </div>
+                            </div>
+
+                            <div class="p-3 border rounded">
+                                <h6 class="text-secondary mb-2">Configure Programmed VAT (%)</h6>
+                                
+                                <div class="row g-2 mb-3">
+                                    <div class="col">
+                                        <label class="small text-muted mb-1">Tax A</label>
+                                        <input type="number" step="0.01" class="form-control form-control-sm" id="vatA" placeholder="A">
+                                    </div>
+                                    <div class="col">
+                                        <label class="small text-muted mb-1">Tax B</label>
+                                        <input type="number" step="0.01" class="form-control form-control-sm" id="vatB" placeholder="B">
+                                    </div>
+                                    <div class="col">
+                                        <label class="small text-muted mb-1">Tax C</label>
+                                        <input type="number" step="0.01" class="form-control form-control-sm" id="vatC" placeholder="C">
+                                    </div>
+                                    <div class="col">
+                                        <label class="small text-muted mb-1">Tax D</label>
+                                        <input type="number" step="0.01" class="form-control form-control-sm" id="vatD" placeholder="D">
+                                    </div>
+                                    <div class="col">
+                                        <label class="small text-muted mb-1">Tax E</label>
+                                        <input type="number" step="0.01" class="form-control form-control-sm" id="vatE" placeholder="E">
+                                    </div>
+                                </div>
+
+                                <small class="text-muted d-block mb-3">Leave blank to keep existing rate. Use 100.00 for Exempt, 100.01 for Other, and 100.02 for Inactive.</small>
+                                <button class="btn btn-danger btn-sm w-100" onclick="setVatRates()">Apply VAT Settings</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Device Modal -->
+    <div class="modal fade" id="registerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Add Cash Register</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editRegId">
+                    <div class="mb-3">
+                        <label class="form-label">Name / Identification</label>
+                        <input type="text" class="form-control" id="regName" placeholder="e.g. Bucharest Store POS 1">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">IP Address</label>
+                        <input type="text" class="form-control" id="regIp" placeholder="e.g. 192.168.10.113">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Port</label>
+                        <input type="number" class="form-control" id="regPort" value="3999">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveRegister()">Save Configuration</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Management Modal -->
+    <div class="modal fade" id="pwdModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Change Admin Password</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted">Provide the new password value below. The old password must currently be populated in the navbar above.</p>
+                    <div class="mb-3">
+                        <label class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="newAdminPassword" placeholder="Enter New Password">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveNewPassword()">Update Password</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Log Viewer Modal -->
+    <div class="modal fade" id="logsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title">ðŸ–¥ï¸ System Administration Audit Logs</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light" style="max-height: calc(100vh - 200px);">
+                    <!-- Filter logs header inputs -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-12">
+                            <input type="text" id="logSearchQuery" class="form-control" placeholder="Filter active log by Computer Name, Client IP, Register Name, or Register IP..." oninput="renderLogs()">
+                        </div>
+                    </div>
+                    
+                    <!-- Audit Logs Table -->
+                    <div class="table-responsive bg-white rounded border">
+                        <table class="table table-hover table-sm align-middle mb-0">
+                            <thead class="table-dark" style="font-size:0.75rem;">
+                                <tr>
+                                    <th style="width: 15%;">Timestamp</th>
+                                    <th style="width: 22%;">Accessing Computer</th>
+                                    <th style="width: 22%;">Target Register</th>
+                                    <th>Modification Action Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logsTableBody" style="font-size:0.78rem;">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close Logs</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let registers = [];
+        let activeRegId = null;
+        let currentStatusFilter = 'all'; // 'all', 'online', 'offline'
+        
+        // Sorting State variables
+        let currentSortField = null; // 'name', 'ip', 'status'
+        let currentSortDirection = 'asc'; // 'asc' or 'desc'
+        
+        // Cache representing the active rates parsed from the last status query (A to E)
+        let activeVatRaw = [100.02, 100.02, 100.02, 100.02, 100.02];
+
+        // Audit Log local memory cache
+        let currentLogs = [];
+
+        // Inactivity Watchdog Configuration (3 Minutes)
+        let inactivityTimeout;
+        const TIMEOUT_DURATION = 3 * 60 * 1000; 
+
+        const modalObj = new bootstrap.Modal(document.getElementById('registerModal'));
+        const pwdModalObj = new bootstrap.Modal(document.getElementById('pwdModal'));
+        const logsModalObj = new bootstrap.Modal(document.getElementById('logsModal'));
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedPwd = sessionStorage.getItem("adminPassword");
+            if (savedPwd) {
+                document.getElementById("globalAdminPassword").value = savedPwd;
+            }
+            loadRegisters();
+            resetInactivityTimer();
+            
+            const activityEvents = ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'];
+            activityEvents.forEach(eventName => {
+                document.addEventListener(eventName, resetInactivityTimer, true);
+            });
+        });
+
+        document.getElementById("globalAdminPassword").addEventListener("input", (e) => {
+            sessionStorage.setItem("adminPassword", e.target.value);
+            resetInactivityTimer();
+        });
+
+        function resetInactivityTimer() {
+            clearTimeout(inactivityTimeout);
+            if (getAdminPassword()) {
+                inactivityTimeout = setTimeout(logoutAdmin, TIMEOUT_DURATION);
+            }
+        }
+
+        function logoutAdmin() {
+            document.getElementById("globalAdminPassword").value = "";
+            sessionStorage.removeItem("adminPassword");
+            
+            activeRegId = null;
+            document.querySelectorAll(".list-group-item-compact").forEach(item => {
+                item.classList.remove("active-reg");
+            });
+            document.getElementById("controlPanel").classList.add("d-none");
+            document.getElementById("emptyPanel").classList.remove("d-none");
+
+            modalObj.hide();
+            pwdModalObj.hide();
+            logsModalObj.hide();
+            
+            alert("Admin session has expired due to 3 minutes of inactivity.");
+        }
+
+        function getAdminPassword() {
+            return document.getElementById("globalAdminPassword").value;
+        }
+
+        function loadRegisters() {
+            fetch('/api/registers')
+                .then(res => res.json())
+                .then(data => {
+                    registers = data.map(reg => ({
+                        ...reg,
+                        status: 'checking'
+                    }));
+                    
+                    renderRegisterList();
+                    
+                    registers.forEach(reg => {
+                        queryStatusForBadge(reg.id);
+                    });
+                });
+        }
+
+        function renderRegisterList() {
+            const container = document.getElementById("registerList");
+            container.innerHTML = "";
+            
+            if (registers.length === 0) {
+                container.innerHTML = `<div class="p-2 text-center text-muted" style="font-size:0.75rem;">No registers configured. Click "Add New" to begin.</div>`;
+                return;
+            }
+
+            registers.forEach(reg => {
+                const activeClass = (activeRegId === reg.id) ? "active-reg" : "";
+                
+                let dotClass = "dot-checking";
+                let badgeClass = "badge bg-warning text-dark status-badge";
+                let badgeText = "Checking";
+                
+                if (reg.status === "Online") {
+                    dotClass = "dot-online";
+                    badgeClass = "badge bg-success status-badge";
+                    badgeText = "Online";
+                } else if (reg.status === "Offline") {
+                    dotClass = "dot-offline";
+                    badgeClass = "badge bg-danger status-badge";
+                    badgeText = "Offline";
+                } else if (reg.status === "Error") {
+                    dotClass = "dot-offline";
+                    badgeClass = "badge bg-danger status-badge";
+                    badgeText = "Error";
+                }
+
+                const div = document.createElement("div");
+                div.className = `list-group-item list-group-item-compact d-flex align-items-center justify-content-between ${activeClass}`;
+                div.id = `item-reg-${reg.id}`;
+                div.onclick = (e) => {
+                    if (e.target.closest('.btn-group-stop')) return;
+                    activateControlPanel(reg.id);
+                };
+
+                div.innerHTML = `
+                    <div class="d-flex align-items-center flex-grow-1 min-width-0 me-2">
+                        <span class="indicator-dot ${dotClass} flex-shrink-0" id="dot-${reg.id}" title="${badgeText} connection..."></span>
+                        <span class="text-dark fw-bold text-truncate me-1" style="max-width: 120px;" title="${reg.name}">${reg.name}</span>
+                        <span class="text-muted font-monospace small text-truncate d-none d-sm-inline me-2" style="font-size:0.7rem;">${reg.ip_address}</span>
+                        <span class="${badgeClass}" id="badge-${reg.id}">${badgeText}</span>
+                    </div>
+                    <div class="btn-group-stop flex-shrink-0">
+                        <button class="btn btn-compact btn-outline-secondary me-1" onclick="showEditModal(${reg.id})">âš™ï¸</button>
+                        <button class="btn btn-compact btn-outline-danger" onclick="deleteRegister(${reg.id})">âŒ</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function queryStatusForBadge(id) {
+            fetch(`/api/registers/${id}/status`)
+                .then(res => res.json())
+                .then(data => {
+                    const reg = registers.find(r => r.id === id);
+                    if (reg) {
+                        reg.status = data.status; 
+                    }
+                    
+                    renderRegisterList();
+                    filterRegisters();
+                    
+                    if (activeRegId === id) {
+                        if (data.status === "Online") {
+                            updateDetailPanelWithData(data);
+                        } else {
+                            showDetailOfflineState(data.error);
+                        }
+                    }
+                })
+                .catch(() => {
+                    const reg = registers.find(r => r.id === id);
+                    if (reg) {
+                        reg.status = "Error";
+                    }
+                    renderRegisterList();
+                    filterRegisters();
+                });
+        }
+
+        function setStatusFilter(status) {
+            currentStatusFilter = status;
+            
+            document.getElementById('btn-filter-all').classList.toggle('active', status === 'all');
+            document.getElementById('btn-filter-online').classList.toggle('active', status === 'online');
+            document.getElementById('btn-filter-offline').classList.toggle('active', status === 'offline');
+            
+            filterRegisters();
+        }
+
+        function filterRegisters() {
+            const query = document.getElementById("searchBar").value.toLowerCase().trim();
+            
+            registers.forEach(reg => {
+                const element = document.getElementById(`item-reg-${reg.id}`);
+                if (!element) return;
+                
+                const statusText = reg.status ? reg.status.toLowerCase() : "checking";
+                
+                const matchName = reg.name.toLowerCase().includes(query);
+                const matchIp = reg.ip_address.toLowerCase().includes(query);
+                const matchStatusText = statusText.includes(query);
+                const matchText = matchName || matchIp || matchStatusText;
+                
+                let matchStatusButton = true;
+                if (currentStatusFilter === 'online') {
+                    matchStatusButton = (statusText === 'online');
+                } else if (currentStatusFilter === 'offline') {
+                    matchStatusButton = (statusText === 'offline' || statusText === 'error');
+                }
+                
+                if (matchText && matchStatusButton) {
+                    element.classList.remove("d-none");
+                } else {
+                    element.classList.add("d-none");
+                }
+            });
+        }
+
+        function toggleSort(field) {
+            if (currentSortField === field) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortField = field;
+                currentSortDirection = 'asc';
+            }
+            applySort();
+        }
+
+        function applySort() {
+            if (!currentSortField) return;
+
+            registers.sort((a, b) => {
+                let valA, valB;
+
+                if (currentSortField === 'name') {
+                    valA = a.name.toLowerCase();
+                    valB = b.name.toLowerCase();
+                } else if (currentSortField === 'ip') {
+                    valA = a.ip_address.split('.').map(Number);
+                    valB = b.ip_address.split('.').map(Number);
+
+                    for (let i = 0; i < 4; i++) {
+                        if (valA[i] !== valB[i]) {
+                            return currentSortDirection === 'asc' ? valA[i] - valB[i] : valB[i] - valA[i];
+                        }
+                    }
+                    return 0;
+                } else if (currentSortField === 'status') {
+                    valA = a.status.toLowerCase();
+                    valB = b.status.toLowerCase();
+                }
+
+                if (valA < valB) return currentSortDirection === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            updateSortIndicators();
+            renderRegisterList();
+            filterRegisters();
+        }
+
+        function updateSortIndicators() {
+            const fields = ['name', 'ip', 'status'];
+            fields.forEach(f => {
+                const label = document.getElementById(`sort-${f}`);
+                const arrow = document.getElementById(`arrow-${f}`);
+                if (currentSortField === f) {
+                    label.className = "text-primary fw-bold";
+                    arrow.innerText = currentSortDirection === 'asc' ? "â–²" : "â–¼";
+                } else {
+                    label.className = "text-secondary";
+                    arrow.innerText = "â†•";
+                }
+            });
+        }
+
+        function toggleClientSync() {
+            const isChecked = document.getElementById("syncWithLocalClient").checked;
+            const dtInput = document.getElementById("manualDateTime");
+            if (isChecked) {
+                dtInput.disabled = true;
+                updateDateTimeInputWithClientTime();
+            } else {
+                dtInput.disabled = false;
+            }
+        }
+
+        function updateDateTimeInputWithClientTime() {
+            const now = new Date();
+            const pad = (num) => String(num).padStart(2, '0');
+            const localFormatted = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+            document.getElementById("manualDateTime").value = localFormatted;
+        }
+
+        function activateControlPanel(id) {
+            activeRegId = id;
+            document.querySelectorAll(".list-group-item-compact").forEach(item => {
+                item.classList.remove("active-reg");
+            });
+            const activeItem = document.getElementById(`item-reg-${id}`);
+            if (activeItem) activeItem.classList.add("active-reg");
+
+            const reg = registers.find(r => r.id === id);
+            if (!reg) return;
+
+            document.getElementById("emptyPanel").classList.add("d-none");
+            document.getElementById("controlPanel").classList.remove("d-none");
+            
+            document.getElementById("selectedRegName").innerText = reg.name;
+            document.getElementById("selectedRegIpDetail").innerText = `${reg.ip_address}:${reg.port}`;
+            
+            document.getElementById("selectedRegStatus").className = "badge bg-warning text-dark";
+            document.getElementById("selectedRegStatus").innerText = "Connecting...";
+            document.getElementById("currentDeviceTime").innerText = "Connecting...";
+            document.getElementById("vatContainer").innerHTML = "Connecting...";
+            
+            if (!document.getElementById("syncWithLocalClient").checked) {
+                const localNow = new Date();
+                const formattedLocal = localNow.toISOString().substring(0, 16);
+                document.getElementById("manualDateTime").value = formattedLocal;
+            } else {
+                updateDateTimeInputWithClientTime();
+            }
+
+            queryRegisterStatus();
+        }
+
+        function queryRegisterStatus() {
+            if (!activeRegId) return;
+            const btn = document.getElementById("btnRefreshStatus");
+            btn.disabled = true;
+            btn.innerText = "Refreshing...";
+
+            const reg = registers.find(r => r.id === activeRegId);
+            if (reg) reg.status = "checking";
+            renderRegisterList();
+            filterRegisters();
+
+            fetch(`/api/registers/${activeRegId}/status`)
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerText = "Refresh All Details";
+                    
+                    const rObj = registers.find(r => r.id === activeRegId);
+                    if (rObj) rObj.status = data.status;
+                    
+                    renderRegisterList();
+                    filterRegisters();
+
+                    if (data.status === "Online") {
+                        updateDetailPanelWithData(data);
+                    } else {
+                        showDetailOfflineState(data.error);
+                    }
+                });
+        }
+
+        function updateDetailPanelWithData(data) {
+            const statusBadge = document.getElementById("selectedRegStatus");
+            statusBadge.className = "badge bg-success";
+            statusBadge.innerText = "Online";
+            document.getElementById("currentDeviceTime").innerText = data.time;
+            
+            activeVatRaw = data.vat_raw || [100.02, 100.02, 100.02, 100.02, 100.02];
+
+            const vatContainer = document.getElementById("vatContainer");
+            vatContainer.innerHTML = "";
+            const alphabet = ['A', 'B', 'C', 'D', 'E'];
+            
+            activeVatRaw.forEach((val, index) => {
+                const letter = alphabet[index];
+                
+                let displayVal = `${val}%`;
+                if (val === 100.00) displayVal = "Exempt (0%)";
+                else if (val === 100.01) displayVal = "Other Tax";
+                else if (val === 100.02) displayVal = "Disabled";
+                
+                const card = document.createElement("div");
+                card.className = "col mb-2";
+                card.innerHTML = `
+                    <div class="p-2 border text-center rounded bg-white" style="min-width: 80px;">
+                        <small class="text-muted d-block" style="font-size:0.65rem;">Tax ${letter}</small>
+                        <strong class="text-dark" style="font-size:0.8rem;">${displayVal}</strong>
+                    </div>
+                `;
+                vatContainer.appendChild(card);
+                
+                const inputField = document.getElementById(`vat${letter}`);
+                if (inputField) {
+                    if (val === 100.02) {
+                        inputField.value = "";
+                        inputField.placeholder = "Disabled";
+                    } else if (val === 100.00) {
+                        inputField.value = "100.00";
+                        inputField.placeholder = "Exempt";
+                    } else if (val === 100.01) {
+                        inputField.value = "100.01";
+                        inputField.placeholder = "Other";
+                    } else {
+                        inputField.value = val;
+                        inputField.placeholder = `${val}%`;
+                    }
+                }
+            });
+        }
+
+        function showDetailOfflineState(error) {
+            const statusBadge = document.getElementById("selectedRegStatus");
+            statusBadge.className = "badge bg-danger";
+            statusBadge.innerText = "Offline";
+            document.getElementById("currentDeviceTime").innerText = "Offline / Connection Refused";
+            document.getElementById("vatContainer").innerHTML = `<div class="alert alert-danger col-12 m-0 font-monospace" style="font-size:0.8rem;">${error}</div>`;
+        }
+
+        function showAddModal() {
+            if (!getAdminPassword()) {
+                alert("Action rejected: Admin Key is blank. Specify your password in the top navbar.");
+                return;
+            }
+            document.getElementById("modalTitle").innerText = "Add Cash Register";
+            document.getElementById("editRegId").value = "";
+            document.getElementById("regName").value = "";
+            document.getElementById("regIp").value = "";
+            document.getElementById("regPort").value = "3999";
+            modalObj.show();
+        }
+
+        function showEditModal(id) {
+            if (!getAdminPassword()) {
+                alert("Action rejected: Admin Key is blank. Specify your password in the top navbar.");
+                return;
+            }
+            const reg = registers.find(r => r.id === id);
+            if (!reg) return;
+
+            document.getElementById("modalTitle").innerText = "Edit Register Configuration";
+            document.getElementById("editRegId").value = reg.id;
+            document.getElementById("regName").value = reg.name;
+            document.getElementById("regIp").value = reg.ip_address;
+            document.getElementById("regPort").value = reg.port;
+            modalObj.show();
+        }
+
+        function saveRegister() {
+            const id = document.getElementById("editRegId").value;
+            const payload = {
+                name: document.getElementById("regName").value,
+                ip_address: document.getElementById("regIp").value,
+                port: parseInt(document.getElementById("regPort").value)
+            };
+
+            const method = id ? "PUT" : "POST";
+            const url = id ? `/api/registers/${id}` : '/api/registers';
+
+            fetch(url, {
+                method: method,
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Admin-Password': getAdminPassword()
+                },
+                body: JSON.stringify(payload)
+            }).then(async res => {
+                if (res.status === 401) {
+                    alert("Unauthorized: Incorrect admin password.");
+                    return;
+                }
+                modalObj.hide();
+                loadRegisters();
+                if (id && activeRegId === parseInt(id)) {
+                    activateControlPanel(id);
+                }
+            });
+        }
+
+        function deleteRegister(id) {
+            if (!getAdminPassword()) {
+                alert("Action rejected: Admin Key is blank. Specify your password in the top navbar.");
+                return;
+            }
+            if (!confirm("Are you sure you want to remove this cash register configuration?")) return;
+            
+            fetch(`/api/registers/${id}`, { 
+                method: 'DELETE',
+                headers: { 'X-Admin-Password': getAdminPassword() }
+            })
+            .then(res => {
+                if (res.status === 401) {
+                    alert("Unauthorized: Incorrect admin password.");
+                    return;
+                }
+                if (activeRegId === id) {
+                    document.getElementById("controlPanel").classList.add("d-none");
+                    document.getElementById("emptyPanel").classList.remove("d-none");
+                    activeRegId = null;
+                }
+                loadRegisters();
+            });
+        }
+
+        function showChangePwdModal() {
+            if (!getAdminPassword()) {
+                alert("Action rejected: Admin Key is blank. Enter your current password in the top navbar.");
+                return;
+            }
+            document.getElementById("newAdminPassword").value = "";
+            pwdModalObj.show();
+        }
+
+        function saveNewPassword() {
+            const newPwd = document.getElementById("newAdminPassword").value;
+            if (!newPwd) {
+                alert("Please provide a valid password.");
+                return;
+            }
+
+            fetch("/api/settings/change-password", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Admin-Password": getAdminPassword()
+                },
+                body: JSON.stringify({ new_password: newPwd })
+            })
+            .then(res => {
+                if (res.status === 401) {
+                    alert("Unauthorized: Current password inside Admin Key input is incorrect.");
+                    return;
+                }
+                alert("Password updated successfully!");
+                document.getElementById("globalAdminPassword").value = newPwd;
+                sessionStorage.setItem("adminPassword", newPwd);
+                pwdModalObj.hide();
+            });
+        }
+
+        function setManualTime() {
+            if (!getAdminPassword()) {
+                alert("Action rejected: Admin Key is blank. Specify your password in the top navbar.");
+                return;
+            }
+            
+            let val;
+            const syncClient = document.getElementById("syncWithLocalClient").checked;
+            const dst = document.getElementById("manualDst").checked;
+            
+            if (syncClient) {
+                const now = new Date();
+                const pad = (num) => String(num).padStart(2, '0');
+                val = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+            } else {
+                val = document.getElementById("manualDateTime").value;
+            }
+
+            if (!val) {
+                alert("Select a valid date and time.");
+                return;
+            }
+
+            fetch(`/api/registers/${activeRegId}/set-time`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Admin-Password': getAdminPassword()
+                },
+                body: JSON.stringify({ datetime: val, dst: dst })
+            })
+            .then(res => {
+                if (res.status === 401) {
+                    alert("Unauthorized: Incorrect admin password.");
+                    return null;
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (!data) return;
+                if (data.result === "Success") {
+                    alert("Time settings successfully sent!");
+                    queryRegisterStatus();
+                } else {
+                    alert("Time adjustment error: " + (data.result || data.error));
+                }
+            });
+        }
+
+        function setVatRates() {
+            if (!getAdminPassword()) {
+                alert("Action rejected: Admin Key is blank. Specify your password in the top navbar.");
+                return;
+            }
+            
+            const alphabet = ['A', 'B', 'C', 'D', 'E'];
+            const rates = [];
+            
+            alphabet.forEach((letter, index) => {
+                const inputVal = document.getElementById(`vat${letter}`).value;
+                if (inputVal === "" || inputVal === null) {
+                    rates.push(activeVatRaw[index]);
+                } else {
+                    rates.push(parseFloat(inputVal));
+                }
+            });
+
+            if (!confirm("Confirm programming of VAT structure update on active device?")) return;
+
+            fetch(`/api/registers/${activeRegId}/set-vat`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Admin-Password': getAdminPassword()
+                },
+                body: JSON.stringify({ rates: rates })
+            })
+            .then(res => {
+                if (res.status === 401) {
+                    alert("Unauthorized: Incorrect admin password.");
+                    return null;
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (!data) return;
+                if (data.result === "Success") {
+                    alert("VAT structure successfully sent!");
+                    queryRegisterStatus();
+                } else {
+                    alert("Failed to update VAT: " + (data.result || data.error));
+                }
+            });
+        }
+
+        // Fetches structured audit logs from API endpoint
+        function showLogsModal() {
+            if (!getAdminPassword()) {
+                alert("Action rejected: Admin Key is blank. Specify your password in the top navbar first.");
+                return;
+            }
+            logsModalObj.show();
+            fetchLogs();
+        }
+
+        function fetchLogs() {
+            const tableBody = document.getElementById("logsTableBody");
+            tableBody.innerHTML = `<tr><td colspan="4" class="text-center font-monospace">Loading active log data...</td></tr>`;
+            
+            fetch('/api/logs', {
+                headers: { 'X-Admin-Password': getAdminPassword() }
+            })
+            .then(res => {
+                if (res.status === 401) {
+                    alert("Unauthorized: Incorrect admin password.");
+                    logsModalObj.hide();
+                    return null;
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (!data) return;
+                currentLogs = data;
+                renderLogs();
+            });
+        }
+
+        // Renders log entries using active criteria text filtering
+        function renderLogs() {
+            const query = document.getElementById("logSearchQuery").value.toLowerCase().trim();
+            const tableBody = document.getElementById("logsTableBody");
+            tableBody.innerHTML = "";
+            
+            const filteredLogs = currentLogs.filter(log => {
+                const matchClient = log.client_host.toLowerCase().includes(query) || log.client_ip.toLowerCase().includes(query);
+                const matchReg = log.reg_name.toLowerCase().includes(query) || log.reg_ip.toLowerCase().includes(query);
+                const matchAction = log.action.toLowerCase().includes(query);
+                return matchClient || matchReg || matchAction;
+            });
+            
+            if (filteredLogs.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">No log entries found matching criteria.</td></tr>`;
+                return;
+            }
+            
+            filteredLogs.forEach(log => {
+                const tr = document.createElement("tr");
+                tr.style.fontSize = "0.78rem";
+                tr.innerHTML = `
+                    <td class="text-nowrap font-monospace text-muted">${log.timestamp}</td>
+                    <td class="text-truncate" style="max-width:160px;"><strong>${log.client_host}</strong><br><small class="text-muted font-monospace">${log.client_ip}</small></td>
+                    <td class="text-truncate" style="max-width:160px;"><strong>${log.reg_name}</strong><br><small class="text-muted font-monospace">${log.reg_ip}</small></td>
+                    <td class="text-wrap">${log.action}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>
